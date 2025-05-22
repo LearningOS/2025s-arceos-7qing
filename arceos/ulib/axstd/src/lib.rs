@@ -67,6 +67,7 @@ pub use alloc::{boxed, format, string, vec};
 #[doc(no_inline)]
 pub use core::{arch, cell, cmp, hint, marker, mem, ops, ptr, slice, str};
 
+pub use axhal::misc::random;
 #[macro_use]
 mod macros;
 

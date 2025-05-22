@@ -165,6 +165,54 @@ impl VfsNodeOps for DirNode {
         }
     }
 
+    fn rename(&self, old_path: &str, new_path: &str) -> VfsResult {
+        log::debug!("rename at ramfs: {} -> {}", old_path, new_path);
+        let (old_name, old_rest) = split_path(old_path);
+        if let Some(old_rest) = old_rest {
+            match old_name {
+                "" | "." => self.rename(old_rest, new_path),
+                ".." => self
+                    .parent()
+                    .ok_or(VfsError::NotFound)?
+                    .rename(old_rest, new_path),
+                _ => {
+                    let subdir = self
+                        .children
+                        .read()
+                        .get(old_name)
+                        .ok_or(VfsError::NotFound)?
+                        .clone();
+                    subdir.rename(old_rest, new_path)
+                }
+            }
+        } else if old_name.is_empty() || old_name == "." || old_name == ".." {
+            Err(VfsError::InvalidInput) // rename '.' or '..'
+        } else {
+            let (mut new_name, mut new_rest) = split_path(new_path);
+            while let Some(nnew_rest) = new_rest {
+                (new_name, new_rest) = split_path(nnew_rest);
+            }
+            if let Some(_) = new_rest {
+                return Err(VfsError::InvalidInput); // cannot rename to a path with '/'
+            }
+            if new_name.is_empty() || new_name == "." || new_name == ".." {
+                return Err(VfsError::InvalidInput); // rename '.' or '..'
+            }
+            if self.exist(new_name) {
+                return Err(VfsError::AlreadyExists);
+            }
+            let node = self
+                .children
+                .read()
+                .get(old_name)
+                .ok_or(VfsError::NotFound)?
+                .clone();
+            self.children.write().insert(new_name.into(), node);
+            self.remove_node(old_name)?;
+            Ok(())
+        }
+    }
+
     axfs_vfs::impl_vfs_dir_default! {}
 }
 
